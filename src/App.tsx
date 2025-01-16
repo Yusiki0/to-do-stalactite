@@ -30,7 +30,7 @@ function App() {
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [dateLimite, setDateLimite] = useState('');
-  const [categorie, setCategorie] = useState('personnel');
+  const [categorie, setCategorie] = useState('eventmaking');
   const [filtreActif, setFiltreActif] = useState<'tous' | 'actifs' | 'completes'>('tous');
   const [recherche, setRecherche] = useState('');
   const [showStats, setShowStats] = useState(false);
@@ -57,7 +57,7 @@ function App() {
     setTitre('');
     setDescription('');
     setDateLimite('');
-    setCategorie('personnel');
+    setCategorie('eventmaking');
   };
 
   const toggleComplete = (id: number) => {
