@@ -116,7 +116,7 @@ function App() {
             Gestionnaire d'Objectifs
           </h1>
           <p className="text-gray-600 text-lg">
-            Organisez, suivez et accomplissez vos objectifs
+            Organisation, suivis et accomplissement des objectifs de Pokémon Stalactite
           </p>
         </header>
 
