@@ -52,11 +52,26 @@ interface Objectif {
 function App() {
   const [objectifs, setObjectifs] = useState<Objectif[]>(() => {
     const savedObjectifs = localStorage.getItem('objectifs');
-    return savedObjectifs ? JSON.parse(savedObjectifs) : [];
+    if (savedObjectifs) {
+      try {
+        const parsed = JSON.parse(savedObjectifs);
+        // Valider les dates lors du chargement
+        return parsed.map((obj: Objectif) => ({
+          ...obj,
+          dateLimite: obj.dateLimite || new Date().toISOString().split('T')[0],
+          dateCreation: obj.dateCreation || new Date().toISOString(),
+          dateDerniereModification: obj.dateDerniereModification || undefined
+        }));
+      } catch (e) {
+        console.error('Erreur lors du chargement des objectifs:', e);
+        return [];
+      }
+    }
+    return [];
   });
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
-  const [dateLimite, setDateLimite] = useState('');
+  const [dateLimite, setDateLimite] = useState(new Date().toISOString().split('T')[0]);
   const [categorie, setCategorie] = useState('eventmaking');
   const [filtreActif, setFiltreActif] = useState<'tous' | 'actifs' | 'completes'>('tous');
   const [recherche, setRecherche] = useState('');
@@ -66,12 +81,19 @@ function App() {
   const [triOrdre, setTriOrdre] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
-    localStorage.setItem('objectifs', JSON.stringify(objectifs));
+    try {
+      localStorage.setItem('objectifs', JSON.stringify(objectifs));
+    } catch (e) {
+      console.error('Erreur lors de la sauvegarde des objectifs:', e);
+    }
   }, [objectifs]);
 
   const ajouterObjectif = (e: React.FormEvent) => {
     e.preventDefault();
     if (!titre.trim()) return;
+
+    const maintenant = new Date().toISOString();
+    const dateValide = dateLimite || new Date().toISOString().split('T')[0];
 
     if (objectifEnEdition) {
       setObjectifs(objectifs.map(obj => 
@@ -80,9 +102,9 @@ function App() {
               ...obj,
               titre,
               description,
-              dateLimite,
+              dateLimite: dateValide,
               categorie,
-              dateDerniereModification: new Date().toISOString()
+              dateDerniereModification: maintenant
             }
           : obj
       ));
@@ -92,18 +114,18 @@ function App() {
         id: Date.now(),
         titre,
         description,
-        dateLimite,
+        dateLimite: dateValide,
         complete: false,
         priorite: false,
         categorie,
-        dateCreation: new Date().toISOString()
+        dateCreation: maintenant
       };
       setObjectifs([...objectifs, nouvelObjectif]);
     }
 
     setTitre('');
     setDescription('');
-    setDateLimite('');
+    setDateLimite(new Date().toISOString().split('T')[0]);
     setCategorie('eventmaking');
   };
 
@@ -120,8 +142,8 @@ function App() {
     setObjectifEnEdition(null);
     setTitre('');
     setDescription('');
-    setDateLimite('');
-    setCategorie('personnel');
+    setDateLimite(new Date().toISOString().split('T')[0]);
+    setCategorie('eventmaking');
   };
 
   const toggleComplete = (id: number) => {
@@ -212,10 +234,15 @@ function App() {
       {
         label: 'Objectifs Complétés',
         data: derniers7Jours.map(date => 
-          objectifs.filter(obj => 
-            obj.complete && 
-            new Date(obj.dateDerniereModification || obj.dateCreation).toISOString().split('T')[0] === date
-          ).length
+          objectifs.filter(obj => {
+            try {
+              const dateModif = obj.dateDerniereModification || obj.dateCreation;
+              return obj.complete && new Date(dateModif).toISOString().split('T')[0] === date;
+            } catch (e) {
+              console.error('Erreur de date pour objectif:', obj);
+              return false;
+            }
+          }).length
         ),
         borderColor: 'rgb(34, 197, 94)',
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -225,9 +252,14 @@ function App() {
       {
         label: 'Nouveaux Objectifs',
         data: derniers7Jours.map(date => 
-          objectifs.filter(obj => 
-            new Date(obj.dateCreation).toISOString().split('T')[0] === date
-          ).length
+          objectifs.filter(obj => {
+            try {
+              return new Date(obj.dateCreation).toISOString().split('T')[0] === date;
+            } catch (e) {
+              console.error('Erreur de date pour objectif:', obj);
+              return false;
+            }
+          }).length
         ),
         borderColor: 'rgb(79, 70, 229)',
         backgroundColor: 'rgba(79, 70, 229, 0.1)',
@@ -272,13 +304,27 @@ function App() {
     const aujourdhui = new Date();
     return objectifs.filter(obj => {
       if (obj.complete) return false;
-      const dateLimite = new Date(obj.dateLimite);
-      const diffJours = Math.ceil((dateLimite.getTime() - aujourdhui.getTime()) / (1000 * 60 * 60 * 24));
-      return diffJours <= 3 && diffJours >= 0;
+      try {
+        const dateLimite = new Date(obj.dateLimite);
+        const diffJours = Math.ceil((dateLimite.getTime() - aujourdhui.getTime()) / (1000 * 60 * 60 * 24));
+        return diffJours <= 3 && diffJours >= 0;
+      } catch (e) {
+        console.error('Erreur de date pour objectif urgent:', obj);
+        return false;
+      }
     });
   };
 
   const objectifsUrgents = getObjectifsUrgents();
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    } catch (e) {
+      console.error('Erreur de formatage de date:', dateStr);
+      return 'Date invalide';
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
@@ -304,7 +350,7 @@ function App() {
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-800">{obj.titre}</span>
                     <span className="text-sm text-red-600">
-                      {new Date(obj.dateLimite).toLocaleDateString('fr-FR')}
+                      {formatDate(obj.dateLimite)}
                     </span>
                   </div>
                 </div>
@@ -371,10 +417,10 @@ function App() {
                     onChange={(e) => setCategorie(e.target.value)}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
-                    <option value="event making">Event Making</option>
+                    <option value="eventmaking">Event Making</option>
                     <option value="mapping">Mapping</option>
                     <option value="code">Code</option>
-                    <option value="ui design">UI design</option>
+                    <option value="uidesign">UI design</option>
                   </select>
                 </div>
 
@@ -540,14 +586,14 @@ function App() {
                             <div className="flex items-center">
                               <Calendar size={16} className="mr-1" />
                               <span>
-                                {new Date(objectif.dateLimite).toLocaleDateString('fr-FR')}
+                                {formatDate(objectif.dateLimite)}
                               </span>
                             </div>
                             {objectif.dateDerniereModification && (
                               <div className="flex items-center">
                                 <Clock size={16} className="mr-1" />
                                 <span>
-                                  Modifié le {new Date(objectif.dateDerniereModification).toLocaleDateString('fr-FR')}
+                                  Modifié le {formatDate(objectif.dateDerniereModification)}
                                 </span>
                               </div>
                             )}
